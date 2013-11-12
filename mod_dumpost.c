@@ -36,7 +36,7 @@ apr_status_t logit(ap_filter_t *f) {
 
     // data is truncated to MAX_STRING_LEN ~ 8192 in apache
     ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                "\"%s\" %s", f->r->the_request, state->buffer);
+                "\"%s\" %ld %s", f->r->the_request, strlen(state->buffer), state->buffer);
 
     //Not working on Apache2.2
     //ap_log_rdata(APLOG_MARK, APLOG_INFO, f->r, "DUMPOST", state->buffer, state->log_size, 0);
@@ -85,7 +85,7 @@ apr_status_t dumpost_input_filter (ap_filter_t *f, apr_bucket_brigade *bb,
         /* create state if not yet */
         apr_pool_t *mp;
         if ((ret = apr_pool_create(&mp, f->r->pool)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r, "mod_dumpost: unable to create memory pool");
+            ap_log_rerror(APLOG_MARK, APLOG_ERROR, 0, f->r, "mod_dumpost: unable to create memory pool");
             return ret;
         }
         f->ctx = state = (request_state *) apr_palloc(mp, sizeof *state);
@@ -99,40 +99,38 @@ apr_status_t dumpost_input_filter (ap_filter_t *f, apr_bucket_brigade *bb,
     if ((ret = ap_get_brigade(f->next, bb, mode, block, readbytes)) != APR_SUCCESS)
         return ret;
 
-    char *buf = state->buffer;
-    apr_size_t buf_len = state->log_size;
     char **headers = (cfg->headers->nelts > 0)?(char **) cfg->headers->elts : NULL;
 
     /* dump header if config */    
-    if (state->log_size != LOG_IS_FULL && headers!=NULL && !state->header_printed) {
+    if (state->log_size != LOG_IS_FULL && headers != NULL && !state->header_printed) {
         int i=0; 
         for (;i<cfg->headers->nelts;i++) {
             const char *s = apr_table_get(f->r->headers_in, headers[i]);
             if (s == NULL) continue;
             int len = strlen(s);
-            len = min(len, cfg->max_size - len);
-            strncpy(buf + buf_len, s, len);
-            buf_len += len + 1;
-            buf[buf_len-1] = ' ';
-            if (buf_len == cfg->max_size) break;            
+            len = min(len, cfg->max_size - state->log_size - 1);
+            strncpy(state->buffer + state->log_size, s, len);
+            state->log_size += len + 1;
+            state->buffer[state->log_size - 1] = ' ';
+            if (state->log_size == cfg->max_size)
+            {
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r, "mod_dumpost: body limit reach");
+                state->log_size = LOG_IS_FULL;
+                break;            
+            }
         }
         state->header_printed = 1;
     }
 
     /* dump body */
     for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) 
-        if (state->log_size != LOG_IS_FULL && buf_len < cfg->max_size) 
-            dumpit(f, b, buf + buf_len, &buf_len);
+        if (state->log_size != LOG_IS_FULL && state->log_size < cfg->max_size) 
+            dumpit(f, b, state->buffer + state->log_size, &(state->log_size));
 
-    if (buf_len && state->log_size != LOG_IS_FULL) {
-        buf_len = min(buf_len, cfg->max_size);
-	state->log_size = buf_len;
-
-        if (state->log_size == cfg->max_size){
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r, "mod_dumpost: body limit reach");
-            state->log_size = LOG_IS_FULL;
-        }
-    } 
+    if (state->log_size == cfg->max_size){
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r, "mod_dumpost: body limit reach");
+        state->log_size = LOG_IS_FULL;
+    }
 
     return APR_SUCCESS;
 }
