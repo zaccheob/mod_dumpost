@@ -22,21 +22,19 @@
 #define LOG_IS_FULL -1
 #define DEFAULT_MAX_SIZE 1024*1024
 #define min(a,b) (a)<(b)?(a):(b)
-#define CREATEMODE ( APR_UREAD | APR_UWRITE | APR_GREAD )
 
 typedef struct dumpost_cfg_t {
     apr_pool_t *pool;
     apr_size_t max_size;
     apr_array_header_t *headers;
-    char *file;
 } dumpost_cfg_t;
 
 typedef struct {
     apr_pool_t *mp;
-    int log_size;
+    apr_size_t buffer_used;
     int header_printed;
     char *buffer;
-    apr_file_t *fd;
+    char buffer_printed;
 } request_state;
 
 #endif
