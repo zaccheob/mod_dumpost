@@ -32,7 +32,8 @@ typedef struct dumpost_cfg_t {
 typedef struct {
     apr_pool_t *mp;
     apr_size_t buffer_used;
-    int header_printed;
+    char header_printed;
+    char qs_printed;
     char *buffer;
     char buffer_printed;
 } request_state;

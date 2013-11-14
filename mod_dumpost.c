@@ -66,7 +66,7 @@ void buffer_print(ap_filter_t *f, dumpost_cfg_t *cfg)
 
 	state->buffer[state->buffer_used] = '\0'; //Null terminated string: note that we need buffer max_size + 1 allocated
 	// data is truncated to MAX_STRING_LEN ~ 8192 in apache
-	ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, "\"%s\" %s", f->r->the_request, state->buffer);
+	ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, "%s %s%s %s", f->r->method, f->r->hostname, f->r->uri, state->buffer);
 	state->buffer_printed = 1;
 }
 
@@ -94,6 +94,7 @@ apr_status_t dumpost_input_filter (ap_filter_t *f, apr_bucket_brigade *bb, ap_in
 		state->mp = mp;
 		state->buffer_used = 0L;
 		state->header_printed = FALSE;
+		state->qs_printed = FALSE;
 		state->buffer = apr_palloc(state->mp, cfg->max_size + 1); //1 byte more because string buffer is null terminated
 		state->buffer_printed = FALSE;
 	}
@@ -112,6 +113,14 @@ apr_status_t dumpost_input_filter (ap_filter_t *f, apr_bucket_brigade *bb, ap_in
 			buffer_append(f, cfg, " ", 1);
 		}
 		state->header_printed = 1;
+	}
+
+	/*For GET requests dump separately the QUERY_STRING*/
+	if (!buffer_is_full(f, cfg) && !state->qs_printed && f->r->args && f->r->args[0] != '\0')
+	{
+		buffer_append(f, cfg, f->r->args, strlen(f->r->args));
+		buffer_append(f, cfg, " ", 1);
+		state->qs_printed = 1;
 	}
 
 	if ((ret = ap_get_brigade(f->next, bb, mode, block, readbytes)) != APR_SUCCESS)
