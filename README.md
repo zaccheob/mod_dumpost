@@ -19,11 +19,10 @@ make install
 In `httpd.conf` (optional):
 * `DumpPostMaxSize 1024`: limit the size of a log entry to `1024` bytes (default value: `1048576` i.e. 1MB)
 * `DumpPostHeaderAdd Cookie Content-Type`:  add HTTP Header to log together with POST (default value: None)
-* `DumpPostLogFile`: specify a custom file to write the log entry (other than
 error log)
 
 ###Requirement:
 * apxs:
     * Ubuntu: `sudo apt-get install apache2-threaded-dev`, edit Makefile change
       `apxs` to `apxs2`
-* `LogLevel` of at least `Info` (not important if using DumpPostLogFile)
+* `LogLevel` of at least `Info
